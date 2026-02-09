@@ -8,6 +8,7 @@ pub fn init() SpinLock {
 pub fn lock(self: *SpinLock) void {
     while (true) {
         _ = (self.locked.cmpxchgWeak(0, 1, .acquire, .monotonic)) orelse return;
+        std.atomic.spinLoopHint();
     }
 }
 pub fn unlock(self: *SpinLock) void {
