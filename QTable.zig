@@ -1,7 +1,7 @@
 const std = @import("std");
 const SpinLock = @import("SpinLock.zig");
 const Allocator = std.mem.Allocator;
-const Err = error{ Empty, NotFound };
+pub const Err = error{ Empty, NotFound };
 pub fn QTable(comptime T: type) type {
     const Node = struct {
         node: std.DoublyLinkedList.Node,
@@ -42,7 +42,14 @@ pub fn QTable(comptime T: type) type {
                 }
             }
         }
-        pub fn put(self: *QTable(T), key: usize, val: T) !void {
+        pub fn append(self: *QTable(T), key: usize, val: T) !void {
+            try self.put(key, val, true);
+        }
+        pub fn prepend(self: *QTable(T), key: usize, val: T) !void {
+            try self.put(key, val, false);
+        }
+
+        fn put(self: *QTable(T), key: usize, val: T, _append: bool) !void {
             var res: *std.DoublyLinkedList = undefined;
             var n = try self.allocator.create(Node);
             n.val = val;
@@ -53,7 +60,11 @@ pub fn QTable(comptime T: type) type {
                 res.* = .{};
                 try self.hash.put(self.allocator, key, res);
             }
-            res.append(&n.node);
+            if (_append) {
+                res.append(&n.node);
+            } else {
+                res.prepend(&n.node);
+            }
         }
 
         pub fn next(self: QTable(T), key: usize) !T {
@@ -88,16 +99,17 @@ test "smoke_test" {
     );
     defer wq.deinit();
 
-    try wq.put(1, 10);
+    try wq.append(1, 10);
     const val = try wq.next(1);
     try std.testing.expect(val == 10);
     _ = wq.next(2) catch |err| {
         try std.testing.expect(err == Err.NotFound);
     };
-    try wq.put(1, 20);
-    try wq.put(1, 30);
+    try wq.append(1, 20);
+    try wq.append(1, 30);
+    try wq.prepend(1, 40);
     const ar = try wq.drain(1, std.testing.allocator);
-    const exp = [2]u8{ 20, 30 };
+    const exp = [_]u8{ 40, 20, 30 };
     try std.testing.expectEqualSlices(u8, &exp, ar);
     defer std.testing.allocator.free(ar);
 }
