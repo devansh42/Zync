@@ -8,10 +8,12 @@ const testing = std.testing;
 // Higer 32 bits stores number of GoRoutines added
 // Lower 32 bits stores number of Waiters
 val: std.atomic.Value(u64),
+sema: u32, // for waiter counters
 
 pub fn init(allocator: Allocator) !*WaitGroup {
     const wg = try allocator.create(WaitGroup);
     wg.val = std.atomic.Value(u64).init(0);
+    wg.sema = 0;
     return wg;
 }
 pub fn deinit(self: *WaitGroup, allocator: Allocator) void {
@@ -28,10 +30,10 @@ pub fn Wait(self: *WaitGroup) void {
         if (self.val.cmpxchgWeak(state, state + 1, .acquire, .monotonic) == null) {
             // We have to put this GoR into the wait Queue
             // and suspends it, until the conunter becomes 0.
-            Runtime.waitGo(@intFromPtr(&self.val.raw)) catch {
+            Runtime.waitGo(&self.sema, true) catch {
                 unreachable;
             };
-            std.debug.print("\nWait Over", .{});
+
             return;
         }
     }
@@ -64,7 +66,7 @@ pub fn Done(self: *WaitGroup) void {
                 // when counter became 0 last time.
                 @panic("waitgroup state changed, while releasing waiters");
             }
-            Runtime.freeGo(@intFromPtr(&self.val.raw)) catch {
+            Runtime.freeGo(&self.sema) catch {
                 unreachable;
             };
         }
@@ -76,14 +78,12 @@ test "smoke_test" {
     const runt = try Runtime.Runtime.init(allocator);
     defer runt.deinit();
     runt.Main(testFn, .{runt});
-    std.Thread.sleep(time.ns_per_s);
 }
 test "test_fanout" {
     const allocator = std.testing.allocator;
     const runt = try Runtime.Runtime.init(allocator);
     defer runt.deinit();
     runt.Main(testFanoutFn, .{runt});
-    std.Thread.sleep(time.ns_per_s);
 }
 
 fn testFanoutFn(runt: *Runtime.Runtime) !void {
