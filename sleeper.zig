@@ -4,16 +4,21 @@ const Allocator = std.mem.Allocator;
 const SpinLock = @import("SpinLock.zig");
 const sleeper = @This();
 treap: Treap,
-
+size: usize = 0,
 pub fn init() sleeper {
     return .{ .treap = .{} };
 }
 
 pub const Empty: Treap.Node = .{ .key = 0, .parent = null, .priority = 0, .children = [_]?*Treap.Node{ null, null } };
 
+pub fn len(self: *sleeper) usize {
+    return self.size;
+}
+
 pub fn add(self: *sleeper, dur: i128, node: *Treap.Node) void {
     var now = std.time.nanoTimestamp();
     now += dur;
+    self.size += 1;
     while (true) {
         var entry: Treap.Entry = self.treap.getEntryFor(now);
         if (entry.node) |_| {
@@ -32,9 +37,14 @@ pub fn nextIfPast(self: *sleeper) ?*Treap.Node {
     if (std.time.nanoTimestamp() >= n.key) {
         var e = self.treap.getEntryForExisting(n);
         e.set(null);
+        self.size -= 1;
         return n;
     }
     return null;
+}
+pub fn peek(self: *sleeper) ?i128 {
+    const n = self.treap.getMin() orelse return null;
+    return n.key;
 }
 
 fn earlyTime(a: i128, b: i128) std.math.Order {
