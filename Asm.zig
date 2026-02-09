@@ -1,3 +1,5 @@
+pub const Done: usize = 1;
+pub const Running: usize = 0;
 pub const RoutineRegisters = extern struct {
     sp: u64 = 0, // Stack Pointer
     x19: u64 = 0,
@@ -106,7 +108,7 @@ pub fn resetThreadStack(_: usize, _: usize, _: usize) callconv(.c) void {
 // GoR after adding it to block list
 // Note: It doesn't save the Stack Pointer
 // This should be called from the GoR about to block.
-pub fn saveStateBeforeSwitching(_: *RoutineRegisters) callconv(.c) void {
+pub fn saveStateBeforeSwitching(_: *RoutineRegisters) callconv(.c) usize {
     // x0 points to state location for goRoutine
     asm volatile (
         \\ stp x19, x20, [x0, #8]
@@ -116,7 +118,9 @@ pub fn saveStateBeforeSwitching(_: *RoutineRegisters) callconv(.c) void {
         \\ stp x27, x28, [x0, #72]
         // Saving frame pointer and link register
         \\ stp x29, x30, [x0, #88]
+        \\ mov x0, #0
         ::: .{ .memory = true });
+    return Running;
 }
 
 // restoreStateAndSwitch restores the GoR's register
@@ -131,6 +135,7 @@ pub fn restoreStateAndSwitch(_: *RoutineRegisters) callconv(.c) void {
         \\ ldp x25, x26, [x0, #56] 
         \\ ldp x27, x28, [x0, #72] 
         \\ ldp x29, x30, [x0, #88] 
+        \\ mov x0 , #1
         \\ ret
     );
 }
